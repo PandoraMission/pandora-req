@@ -1,0 +1,11 @@
+import astropy.units as u
+
+REQUIRED_MAG = 9
+REQUIRED_TEFF = 3500
+REQUIRED_SNR = 6000
+REQUIRED_R = 30
+REQUIRED_INTS = 900
+LAM = (1300 * u.nm).to(u.micron)
+NFOWLER = 4
+NFOWLER_GROUPS = 2
+NFRAMES = 24
