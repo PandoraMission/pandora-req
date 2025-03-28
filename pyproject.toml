@@ -1,6 +1,6 @@
 [project]
 name = "pandorareq"
-version = "0.1.0"
+version = "0.1.1"
 description = ""
 authors = [
     {name = "Christina Hedges",email = "christina.l.hedges@nasa.gov"}
@@ -9,7 +9,7 @@ readme = "README.md"
 requires-python =  ">=3.9,<3.13"
 dependencies = [
     "gaiaoffline (>=1.0.0,<2.0.0)",
-    "pandorapsf (>=0.4.1)",
+    "pandorapsf (>=0.5.0)",
     "pandorasat (>=0.8.3)",
     "pandas (>=2.2.3,<3.0.0)",
     "appdirs (>=1.4.4,<2.0.0)"

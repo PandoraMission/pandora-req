@@ -2796,13 +2796,14 @@ files = [
 
 [[package]]
 name = "pandorapsf"
-version = "0.4.1"
+version = "0.5.0"
 description = ""
 optional = false
 python-versions = "<3.13,>=3.9"
 groups = ["main"]
 files = [
-    {file = "pandorapsf-0.4.1-py3-none-any.whl", hash = "sha256:db86838ca841eca92e047cc6d5a5a9f542f3607a688622d7d55e48e81426310b"},
+    {file = "pandorapsf-0.5.0-py3-none-any.whl", hash = "sha256:f88bacec3c2233aa8e2fcc6a155e18e88dd6c5b1a0695a54d01c4a6f36b574c4"},
+    {file = "pandorapsf-0.5.0.tar.gz", hash = "sha256:aab87baddcaa23cec57ebfa0bbf0ad37a7de23a7a61bf50bda7d697d74dd152b"},
 ]
 
 [package.dependencies]
@@ -4337,4 +4338,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.9,<3.13"
-content-hash = "4eaf461648fbb157b4da19a26d0c249e0a33799b1d124f2c38ffa0a2c9d7ed38"
+content-hash = "25853143eba5c639cf00691373f5633960fb7f89087df986a1ec45c1dd40910b"
