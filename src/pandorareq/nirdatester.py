@@ -28,6 +28,7 @@ class NIRDATester(object):
         dark_rate=None,
         read_noise=None,
         throughput=1,
+        psf=None,
     ):
         # CBE of all the detector properties
         self.NIRDA = ps.NIRDetector()
@@ -54,8 +55,10 @@ class NIRDATester(object):
                 u.Quantity(getattr(self, attr), getattr(self.NIRDA, attr).unit),
             )
         self.throughput = u.Quantity(self.throughput, "")
-
-        self.psf = pp.PSF.from_name("nirda_fallback")
+        if psf is None:
+            self.psf = pp.PSF.from_name("nirda_fallback")
+        else:
+            self.psf = psf
         # self.psf = self.psf.freeze_dimension(row=0 * u.pixel, column=0 * u.pixel)
         self.ts = pp.TraceScene(np.asarray([(300, 40)]), psf=self.psf)
 
