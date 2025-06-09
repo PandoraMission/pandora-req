@@ -1,4 +1,5 @@
 import astropy.units as u
+from astropy.convolution import convolve, Box1DKernel
 import matplotlib.pyplot as plt
 import numpy as np
 import pandorapsf as pp
@@ -286,11 +287,25 @@ class NIRDATester(object):
         return measured_R > REQUIRED_R
 
     def make_resolution_array(
-        self, lam0=0.875 * u.micron, lam1=1.630 * u.micron, lamsteps=20
+        self, lam0=0.875 * u.micron, lam1=1.630 * u.micron, lamsteps=200, return_plot=False
     ):
         lams = np.linspace(lam0, lam1, lamsteps)
 
         lam_arr = np.array([self._get_measured_r(lam) for lam in lams])
+
+        if return_plot:
+            fig, ax = plt.subplots()
+            kernel = Box1DKernel(width=10)
+            y_smooth = convolve(lam_arr, kernel, boundary='extend')
+            ax.scatter(lams, lam_arr, s=8, color='r', label="Modeled resolution")
+            ax.plot(lams, y_smooth, label='Smoothed', linewidth=2)
+            ax.set_xlabel("Wavelength(micron)")
+            ax.set_ylabel(r"Spectral resolution")
+            ax.legend()
+            ax.set_title("NIRDA Spectral Resolution")
+            ax.grid()
+            plt.tight_layout()
+            return fig
         return np.array([lams, lam_arr])
 
     def test_SNR(self, return_plot=False):
@@ -399,6 +414,7 @@ class NIRDATester(object):
     ):
         # Output plots
         resolution_fig = self.test_resolution(return_plot=True)
+        all_resolutions_fig = self.make_resolution_array(return_plot=True)
         snr_figs = self.test_SNR(return_plot=True)
 
         with PdfPages(pdf_filename) as pdf:
@@ -421,6 +437,9 @@ class NIRDATester(object):
             for fig in snr_figs:
                 pdf.savefig(fig)
                 plt.close(fig)
+
+            pdf.savefig(all_resolutions_fig)
+            plt.close(all_resolutions_fig)
 
     # def test_psf(self):
     #     # Test width
