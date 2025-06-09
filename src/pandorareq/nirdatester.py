@@ -56,7 +56,8 @@ class NIRDATester(object):
         self.throughput = u.Quantity(self.throughput, "")
 
         self.psf = pp.PSF.from_name("nirda_fallback")
-        # self.psf = self.psf.freeze_dimension(row=0 * u.pixel, column=0 * u.pixel)
+        self.psf.extrapolate = True
+
         self.ts = pp.TraceScene(np.asarray([(300, 40)]), psf=self.psf)
 
         dy = LAM / REQUIRED_R
@@ -71,15 +72,9 @@ class NIRDATester(object):
             self.psf.trace_wavelength,
         )
 
-        # def pix2wav(x):
-        #     return np.interp(x, pix_det, wav_det)
-
-        def wav2pix(x):
-            return np.interp(x, self.wav_det, self.pix_det)
-
         self.bounds = (
-            int(np.floor(wav2pix(LAM - dy / 2).value)),
-            int(np.ceil(wav2pix(LAM + dy / 2).value)),
+            int(np.floor(self.wav2pix(LAM - dy / 2).value)),
+            int(np.ceil(self.wav2pix(LAM + dy / 2).value)),
         )
 
         return
@@ -133,7 +128,7 @@ class NIRDATester(object):
         - Target Test T$_{{eff}}$: {REQUIRED_TEFF} K
         - Required Number of Integrations: {REQUIRED_INTS}
         - Required SNR: {REQUIRED_SNR}
-        - Required Wavelength: {LAM} $\mu$m
+        - Required Wavelength: {LAM} micron
         - Required R: {REQUIRED_R}
 
         Additional Information:
@@ -144,6 +139,9 @@ class NIRDATester(object):
 
         """
         return text_info
+
+    def wav2pix(self, x):
+        return np.interp(x, self.wav_det, self.pix_det)
 
     def get_page_one(self):
         # Create a figure for the first page
@@ -215,29 +213,40 @@ class NIRDATester(object):
         plt.tight_layout()
         return fig
 
-    def test_resolution(self, return_plot=False):
-        psr, _, psf_slice = self.psf.prf(
-            row=self.bounds[0] + (self.bounds[1] - self.bounds[0]) / 2,
-            column=0,
-            wavelength=LAM,
-        )
-        psr = psr.astype(float)
-        psr -= self.bounds[0] + (self.bounds[1] - self.bounds[0]) / 2
+    def _get_measured_r(self, lam):
 
-        psf_slice = psf_slice.mean(axis=1)
+        psf = self.psf.psf(wavelength=lam)
+        psr = self.psf.psf_row.value
+
+        # get the column-averaged prf, normalize the average
+        psf_slice = psf.mean(axis=1)
         psf_slice /= psf_slice.sum()
 
+        # make sure the row array has the slice centered
         psr -= np.average(psr, weights=psf_slice)
 
+        # split the PRF into two halves, left and right
         s1 = np.where(psr < 0)[0][::-1]
         s2 = np.where(psr > 0)[0]
+
+        # width of the PSF by averaging the left and right half
         width = np.sqrt(2) * np.mean(
             [
                 np.interp(0.34, np.cumsum(psf_slice[s2]), psr[s2]),
                 np.interp(0.34, np.cumsum(psf_slice[s1]), -psr[s1]),
             ]
         )
-        measured_R = LAM.to(u.micron).value / (width * self.microns_per_pixel)
+        measured_R = lam.to(u.micron).value / (width * self.microns_per_pixel)
+        return measured_R
+
+    def test_resolution(self, return_plot=False):
+
+        measured_R = self._get_measured_r(LAM)
+        width = (
+            ((LAM / measured_R) / (self.microns_per_pixel * u.micron / u.pixel))
+            .to(u.pixel)
+            .value
+        )
 
         ts_short = pp.TraceScene(
             np.asarray(
@@ -275,6 +284,14 @@ class NIRDATester(object):
             )
             return fig
         return measured_R > REQUIRED_R
+
+    def make_resolution_array(
+        self, lam0=0.875 * u.micron, lam1=1.630 * u.micron, lamsteps=20
+    ):
+        lams = np.linspace(lam0, lam1, lamsteps)
+
+        lam_arr = np.array([self._get_measured_r(lam) for lam in lams])
+        return np.array([lams, lam_arr])
 
     def test_SNR(self, return_plot=False):
         zodi = self.zodiacal_background_rate * (NFRAMES - NFOWLER) * self.frame_time
