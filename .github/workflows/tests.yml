@@ -42,8 +42,13 @@ jobs:
       run: |
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        # If on a PR, switch to the head branch
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          git fetch origin ${{ github.head_ref }}
+          git checkout ${{ github.head_ref }}
+        fi
         git add .
         git commit -m "Update test results [skip ci]" || echo "No changes to commit"
-        git push origin HEAD:${GITHUB_REF#refs/heads/}
+        git push origin HEAD
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
