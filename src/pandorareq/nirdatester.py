@@ -1,4 +1,5 @@
 import astropy.units as u
+from astropy.convolution import convolve, Box1DKernel
 import matplotlib.pyplot as plt
 import numpy as np
 import pandorapsf as pp
@@ -28,7 +29,6 @@ class NIRDATester(object):
         dark_rate=None,
         read_noise=None,
         throughput=1,
-        psf=None,
     ):
         # CBE of all the detector properties
         self.NIRDA = ps.NIRDetector()
@@ -55,11 +55,10 @@ class NIRDATester(object):
                 u.Quantity(getattr(self, attr), getattr(self.NIRDA, attr).unit),
             )
         self.throughput = u.Quantity(self.throughput, "")
-        if psf is None:
-            self.psf = pp.PSF.from_name("nirda_fallback")
-        else:
-            self.psf = psf
-        # self.psf = self.psf.freeze_dimension(row=0 * u.pixel, column=0 * u.pixel)
+
+        self.psf = pp.PSF.from_name("nirda_fallback")
+        self.psf.extrapolate = True
+
         self.ts = pp.TraceScene(np.asarray([(300, 40)]), psf=self.psf)
 
         dy = LAM / REQUIRED_R
@@ -74,15 +73,9 @@ class NIRDATester(object):
             self.psf.trace_wavelength,
         )
 
-        # def pix2wav(x):
-        #     return np.interp(x, pix_det, wav_det)
-
-        def wav2pix(x):
-            return np.interp(x, self.wav_det, self.pix_det)
-
         self.bounds = (
-            int(np.floor(wav2pix(LAM - dy / 2).value)),
-            int(np.ceil(wav2pix(LAM + dy / 2).value)),
+            int(np.floor(self.wav2pix(LAM - dy / 2).value)),
+            int(np.ceil(self.wav2pix(LAM + dy / 2).value)),
         )
 
         return
@@ -136,7 +129,7 @@ class NIRDATester(object):
         - Target Test T$_{{eff}}$: {REQUIRED_TEFF} K
         - Required Number of Integrations: {REQUIRED_INTS}
         - Required SNR: {REQUIRED_SNR}
-        - Required Wavelength: {LAM} $\mu$m
+        - Required Wavelength: {LAM} micron
         - Required R: {REQUIRED_R}
 
         Additional Information:
@@ -147,6 +140,9 @@ class NIRDATester(object):
 
         """
         return text_info
+
+    def wav2pix(self, x):
+        return np.interp(x, self.wav_det, self.pix_det)
 
     def get_page_one(self):
         # Create a figure for the first page
@@ -218,29 +214,40 @@ class NIRDATester(object):
         plt.tight_layout()
         return fig
 
-    def test_resolution(self, return_plot=False):
-        psr, _, psf_slice = self.psf.prf(
-            row=self.bounds[0] + (self.bounds[1] - self.bounds[0]) / 2,
-            column=0,
-            wavelength=LAM,
-        )
-        psr = psr.astype(float)
-        psr -= self.bounds[0] + (self.bounds[1] - self.bounds[0]) / 2
+    def _get_measured_r(self, lam):
 
-        psf_slice = psf_slice.mean(axis=1)
+        psf = self.psf.psf(wavelength=lam)
+        psr = self.psf.psf_row.value
+
+        # get the column-averaged prf, normalize the average
+        psf_slice = psf.mean(axis=1)
         psf_slice /= psf_slice.sum()
 
+        # make sure the row array has the slice centered
         psr -= np.average(psr, weights=psf_slice)
 
+        # split the PRF into two halves, left and right
         s1 = np.where(psr < 0)[0][::-1]
         s2 = np.where(psr > 0)[0]
+
+        # width of the PSF by averaging the left and right half
         width = np.sqrt(2) * np.mean(
             [
                 np.interp(0.34, np.cumsum(psf_slice[s2]), psr[s2]),
                 np.interp(0.34, np.cumsum(psf_slice[s1]), -psr[s1]),
             ]
         )
-        measured_R = LAM.to(u.micron).value / (width * self.microns_per_pixel)
+        measured_R = lam.to(u.micron).value / (width * self.microns_per_pixel)
+        return measured_R
+
+    def test_resolution(self, return_plot=False):
+
+        measured_R = self._get_measured_r(LAM)
+        width = (
+            ((LAM / measured_R) / (self.microns_per_pixel * u.micron / u.pixel))
+            .to(u.pixel)
+            .value
+        )
 
         ts_short = pp.TraceScene(
             np.asarray(
@@ -278,6 +285,28 @@ class NIRDATester(object):
             )
             return fig
         return measured_R > REQUIRED_R
+
+    def make_resolution_array(
+        self, lam0=0.875 * u.micron, lam1=1.630 * u.micron, lamsteps=200, return_plot=False
+    ):
+        lams = np.linspace(lam0, lam1, lamsteps)
+
+        lam_arr = np.array([self._get_measured_r(lam) for lam in lams])
+
+        if return_plot:
+            fig, ax = plt.subplots()
+            kernel = Box1DKernel(width=10)
+            y_smooth = convolve(lam_arr, kernel, boundary='extend')
+            ax.scatter(lams, lam_arr, s=8, color='r', label="Modeled resolution")
+            ax.plot(lams, y_smooth, label='Smoothed', linewidth=2)
+            ax.set_xlabel("Wavelength(micron)")
+            ax.set_ylabel(r"Spectral resolution")
+            ax.legend()
+            ax.set_title("NIRDA Spectral Resolution")
+            ax.grid()
+            plt.tight_layout()
+            return fig
+        return np.array([lams, lam_arr])
 
     def test_SNR(self, return_plot=False):
         zodi = self.zodiacal_background_rate * (NFRAMES - NFOWLER) * self.frame_time
@@ -385,6 +414,7 @@ class NIRDATester(object):
     ):
         # Output plots
         resolution_fig = self.test_resolution(return_plot=True)
+        all_resolutions_fig = self.make_resolution_array(return_plot=True)
         snr_figs = self.test_SNR(return_plot=True)
 
         with PdfPages(pdf_filename) as pdf:
@@ -407,6 +437,9 @@ class NIRDATester(object):
             for fig in snr_figs:
                 pdf.savefig(fig)
                 plt.close(fig)
+
+            pdf.savefig(all_resolutions_fig)
+            plt.close(all_resolutions_fig)
 
     # def test_psf(self):
     #     # Test width
