@@ -52,6 +52,14 @@ def reset_config():
         "NFRAMES": 24,
     }
 
+    config["VISDA_REQUIREMENTS"] = {
+        "REQUIRED_MAG": 13,
+        "REQUIRED_TEFF": 3500,
+        "REQUIRED_SNR": 1000,
+        "REQUIRED_COADDS": 50,
+        "REQUIRED_TIME": 600,
+    }
+
     with open(CONFIGPATH, "w") as configfile:
         config.write(configfile)
 
@@ -120,4 +128,5 @@ def display_config() -> pd.DataFrame:
     return pd.concat(dfs)
 
 
-from .nirdatester import NIRDATester
+# from .nirdatester import NIRDATester
+# from .visdatester import VISDATester

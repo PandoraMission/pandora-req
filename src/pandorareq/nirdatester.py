@@ -26,8 +26,8 @@ class NIRDATester(object):
         zodiacal_background_rate=None,
         stray_light_rate=None,
         thermal_background_rate=None,
-        dark_rate=None,
-        read_noise=None,
+        dark=None,
+        readnoise=None,
         throughput=1,
     ):
         # CBE of all the detector properties
@@ -35,8 +35,8 @@ class NIRDATester(object):
         self.zodiacal_background_rate = zodiacal_background_rate
         self.stray_light_rate = stray_light_rate
         self.thermal_background_rate = thermal_background_rate
-        self.dark_rate = dark_rate
-        self.read_noise = read_noise
+        self.dark = dark
+        self.readnoise = readnoise
         self.frame_time = self.NIRDA.frame_time((400, 80))
         self.throughput = throughput
 
@@ -44,8 +44,8 @@ class NIRDATester(object):
             "zodiacal_background_rate",
             "stray_light_rate",
             "thermal_background_rate",
-            "dark_rate",
-            "read_noise",
+            "dark",
+            "readnoise",
         ]:
             if getattr(self, attr) is None:
                 setattr(self, attr, getattr(self.NIRDA, attr))
@@ -88,8 +88,8 @@ class NIRDATester(object):
                     "zodiacal_background_rate",
                     "stray_light_rate",
                     "thermal_background_rate",
-                    "dark_rate",
-                    "read_noise",
+                    "dark",
+                    "readnoise",
                     "throughput",
                 ]
             ]
@@ -104,8 +104,8 @@ class NIRDATester(object):
                     "zodiacal_background_rate",
                     "stray_light_rate",
                     "thermal_background_rate",
-                    "dark_rate",
-                    "read_noise",
+                    "dark",
+                    "readnoise",
                 ]
             ]
         )
@@ -164,7 +164,7 @@ class NIRDATester(object):
         return fig
 
     def show_trace(self):
-        wav, spec = ps.utils.load_benchmark()
+        wav, spec = ps.phoenix.load_benchmark()
         spec_det = self.ts.integrate_spectrum(wav, spec)
         ar = self.ts.model((spec_det[:, None] * self.frame_time).to(u.electron))[0]
 
@@ -179,7 +179,7 @@ class NIRDATester(object):
         return fig
 
     def show_trace_1D(self):
-        wav, spec = ps.utils.load_benchmark()
+        wav, spec = ps.phoenix.load_benchmark()
         spec_det = self.ts.integrate_spectrum(wav, spec)
         ar = self.ts.model((spec_det[:, None] * self.frame_time).to(u.electron))[0]
 
@@ -215,7 +215,6 @@ class NIRDATester(object):
         return fig
 
     def _get_measured_r(self, lam):
-
         psf = self.psf.psf(wavelength=lam)
         psr = self.psf.psf_row.value
 
@@ -241,7 +240,6 @@ class NIRDATester(object):
         return measured_R
 
     def test_resolution(self, return_plot=False):
-
         measured_R = self._get_measured_r(LAM)
         width = (
             ((LAM / measured_R) / (self.microns_per_pixel * u.micron / u.pixel))
@@ -271,7 +269,7 @@ class NIRDATester(object):
             fig, axs = plt.subplots(1, 2, figsize=(10, 4))
             axs[0].imshow(ts_short.model(spec_one)[0], vmin=0, vmax=0.1)
             axs[0].set(
-                ylim=(230, 280),
+                ylim=(320, 370),
                 title="Single Line",
                 xlabel="Subarray Column",
                 ylabel="Subarray Row\n(Spectral Dimension)",
@@ -279,7 +277,7 @@ class NIRDATester(object):
             )
             axs[1].imshow(ts_short.model(spec_two)[0], vmin=0, vmax=0.1)
             axs[1].set(
-                ylim=(230, 280),
+                ylim=(320, 370),
                 title=f"Double Line, Resolved at R={int(np.round(measured_R))}\n({np.round(width, 2)} pixels)",
                 xlabel="Subarray Column",
             )
@@ -287,7 +285,11 @@ class NIRDATester(object):
         return measured_R > REQUIRED_R
 
     def make_resolution_array(
-        self, lam0=0.875 * u.micron, lam1=1.630 * u.micron, lamsteps=200, return_plot=False
+        self,
+        lam0=0.875 * u.micron,
+        lam1=1.630 * u.micron,
+        lamsteps=200,
+        return_plot=False,
     ):
         lams = np.linspace(lam0, lam1, lamsteps)
 
@@ -296,9 +298,9 @@ class NIRDATester(object):
         if return_plot:
             fig, ax = plt.subplots()
             kernel = Box1DKernel(width=10)
-            y_smooth = convolve(lam_arr, kernel, boundary='extend')
-            ax.scatter(lams, lam_arr, s=8, color='r', label="Modeled resolution")
-            ax.plot(lams, y_smooth, label='Smoothed', linewidth=2)
+            y_smooth = convolve(lam_arr, kernel, boundary="extend")
+            ax.scatter(lams, lam_arr, s=8, color="r", label="Modeled resolution")
+            ax.plot(lams, y_smooth, label="Smoothed", linewidth=2)
             ax.set_xlabel("Wavelength(micron)")
             ax.set_ylabel(r"Spectral resolution")
             ax.legend()
@@ -312,7 +314,7 @@ class NIRDATester(object):
         zodi = self.zodiacal_background_rate * (NFRAMES - NFOWLER) * self.frame_time
         stray_light = self.stray_light_rate * (NFRAMES - NFOWLER) * self.frame_time
         thermal = self.thermal_background_rate * (NFRAMES - NFOWLER) * self.frame_time
-        dark = self.dark_rate * (NFRAMES - NFOWLER) * self.frame_time
+        dark = self.dark * (NFRAMES - NFOWLER) * self.frame_time
 
         background_signal = zodi + stray_light + thermal + dark
 
@@ -321,7 +323,7 @@ class NIRDATester(object):
         SNR = np.zeros((40, len(dmags)))
         phot_SNR = np.zeros((40, len(dmags)))
         brightest_pixel = np.zeros(len(dmags))
-        wav, spec = ps.utils.load_benchmark()
+        wav, spec = ps.phoenix.load_benchmark()
         spec_det = self.ts.integrate_spectrum(wav, spec) * self.throughput
         for mdx, dmag in enumerate(dmags):
             rflux = 10 ** (dmag / -2.5)
@@ -344,12 +346,12 @@ class NIRDATester(object):
                 background_noise_in_aperture = (
                     np.sqrt(npixels.value * background_signal.value) * u.electron
                 )
-                read_noise = (
+                readnoise = (
                     np.sqrt(
                         (
                             NFOWLER
                             * NFOWLER_GROUPS
-                            * self.read_noise.value**2
+                            * self.readnoise.value**2
                             * npixels.value
                         )
                     )
@@ -357,7 +359,7 @@ class NIRDATester(object):
                 )
                 # total noise sources
                 noise = np.sqrt(
-                    background_noise_in_aperture**2 + photon_noise**2 + read_noise**2
+                    background_noise_in_aperture**2 + photon_noise**2 + readnoise**2
                 )
                 SNR[npix, mdx] = (REQUIRED_INTS / np.sqrt(REQUIRED_INTS)) * flux / noise
                 phot_SNR[npix, mdx] = (
@@ -493,7 +495,7 @@ class NIRDATester(object):
     #     # SIGNAL
     #     thermal = self.thermal_background_rate * (NFRAMES - NFOWLER) * self.frame_time
     #     # SIGNAL
-    #     dark = self.dark_rate * (NFRAMES - NFOWLER) * self.frame_time
+    #     dark = self.dark * (NFRAMES - NFOWLER) * self.frame_time
 
     #     background_signal = zodi + stray_light + thermal + dark
     #     # background_error = np.sqrt(background_signal.value) * background_signal.unit
@@ -530,12 +532,12 @@ class NIRDATester(object):
     #             background_noise_in_aperture = (
     #                 np.sqrt(npixels.value * background_signal.value) * u.electron
     #             )
-    #             read_noise = (
+    #             readnoise = (
     #                 np.sqrt(
     #                     (
     #                         NFOWLER
     #                         * NFOWLER_GROUPS
-    #                         * self.read_noise.value**2
+    #                         * self.readnoise.value**2
     #                         * npixels.value
     #                     )
     #                 )
@@ -543,7 +545,7 @@ class NIRDATester(object):
     #             )
 
     #             noise = np.sqrt(
-    #                 background_noise_in_aperture**2 + photon_noise**2 + read_noise**2
+    #                 background_noise_in_aperture**2 + photon_noise**2 + readnoise**2
     #             )
     #             SNR[npix, mdx] = (REQUIRED_INTS / np.sqrt(REQUIRED_INTS)) * flux / noise
     #             phot_SNR[npix, mdx] = (
