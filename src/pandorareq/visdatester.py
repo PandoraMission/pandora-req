@@ -152,7 +152,7 @@ class VISDATester(object):
             # plt.close(all_resolutions_fig)
 
     def test_SNR(self, return_plot=False):
-        wav, spec = ps.phoenix.get_phoenix_model(REQUIRED_TEFF, vmag=REQUIRED_MAG)
+        wav, spec = ps.phoenix.load_benchmark()
         background_signal = (
             self.background_rate * REQUIRED_TIME * u.s + self.dark * REQUIRED_TIME * u.s
         )
